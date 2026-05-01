@@ -24,6 +24,8 @@
         private TabControl tabControl;
         private TabPage tabReader;
         private TabPage tabScanner;
+        private ComboBox cmbProcessScanner;
+        private Button btnRefreshScanner;
         private TextBox txtSearchValue;
         private Button btnSearchValue;
         private TextBox txtMinValue;
@@ -177,88 +179,115 @@
             tabScanner = new TabPage();
             tabScanner.Text = "Memory Scanner";
             tabControl.TabPages.Add(tabScanner);
+            tabScanner.AutoScroll = true;
+
+            // Process selector
+            var lblProcessScanner = new Label();
+            lblProcessScanner.Text = "Target Process:";
+            lblProcessScanner.Location = new Point(20, 15);
+            lblProcessScanner.Size = new Size(120, 25);
+            tabScanner.Controls.Add(lblProcessScanner);
+
+            cmbProcessScanner = new ComboBox();
+            cmbProcessScanner.Location = new Point(150, 15);
+            cmbProcessScanner.Size = new Size(280, 25);
+            cmbProcessScanner.DropDownStyle = ComboBoxStyle.DropDownList;
+            tabScanner.Controls.Add(cmbProcessScanner);
+
+            btnRefreshScanner = new Button();
+            btnRefreshScanner.Text = "Refresh";
+            btnRefreshScanner.Location = new Point(440, 15);
+            btnRefreshScanner.Size = new Size(80, 25);
+            btnRefreshScanner.Click += BtnRefreshScanner_Click;
+            tabScanner.Controls.Add(btnRefreshScanner);
 
             // Search by specific value
             var lblSearchValue = new Label();
             lblSearchValue.Text = "Search for value:";
-            lblSearchValue.Location = new Point(20, 20);
+            lblSearchValue.Location = new Point(20, 55);
             lblSearchValue.Size = new Size(120, 25);
             tabScanner.Controls.Add(lblSearchValue);
 
             txtSearchValue = new TextBox();
-            txtSearchValue.Location = new Point(150, 20);
+            txtSearchValue.Location = new Point(150, 55);
             txtSearchValue.Size = new Size(150, 25);
             txtSearchValue.Text = "1000";
+            txtSearchValue.KeyPress += (s, e) => { if (e.KeyChar == '\r') { BtnSearchValue_Click(null, EventArgs.Empty); e.Handled = true; } };
             tabScanner.Controls.Add(txtSearchValue);
 
             btnSearchValue = new Button();
             btnSearchValue.Text = "Search";
-            btnSearchValue.Location = new Point(310, 20);
+            btnSearchValue.Location = new Point(310, 55);
             btnSearchValue.Size = new Size(80, 25);
             btnSearchValue.Click += BtnSearchValue_Click;
+            btnSearchValue.TabIndex = 100; // High tab index to prevent accidental focus
             tabScanner.Controls.Add(btnSearchValue);
+
 
             // Separator line
             var lblSeparator = new Label();
             lblSeparator.Text = "────────────────── OR ──────────────────";
-            lblSeparator.Location = new Point(20, 60);
+            lblSeparator.Location = new Point(20, 95);
             lblSeparator.Size = new Size(570, 25);
             tabScanner.Controls.Add(lblSeparator);
 
             // Range search
             var lblMinValue = new Label();
             lblMinValue.Text = "Min value:";
-            lblMinValue.Location = new Point(20, 100);
+            lblMinValue.Location = new Point(20, 135);
             lblMinValue.Size = new Size(100, 25);
             tabScanner.Controls.Add(lblMinValue);
 
             txtMinValue = new TextBox();
-            txtMinValue.Location = new Point(130, 100);
+            txtMinValue.Location = new Point(130, 135);
             txtMinValue.Size = new Size(100, 25);
             txtMinValue.Text = "900";
+            txtMinValue.KeyPress += (s, e) => { if (e.KeyChar == '\r') { BtnSearchRange_Click(null, EventArgs.Empty); e.Handled = true; } };
             tabScanner.Controls.Add(txtMinValue);
 
             var lblMaxValue = new Label();
             lblMaxValue.Text = "Max value:";
-            lblMaxValue.Location = new Point(250, 100);
+            lblMaxValue.Location = new Point(250, 135);
             lblMaxValue.Size = new Size(100, 25);
             tabScanner.Controls.Add(lblMaxValue);
 
             txtMaxValue = new TextBox();
-            txtMaxValue.Location = new Point(360, 100);
+            txtMaxValue.Location = new Point(360, 135);
             txtMaxValue.Size = new Size(100, 25);
             txtMaxValue.Text = "1100";
+            txtMaxValue.KeyPress += (s, e) => { if (e.KeyChar == '\r') { BtnSearchRange_Click(null, EventArgs.Empty); e.Handled = true; } };
             tabScanner.Controls.Add(txtMaxValue);
 
             btnSearchRange = new Button();
             btnSearchRange.Text = "Search Range";
-            btnSearchRange.Location = new Point(470, 100);
+            btnSearchRange.Location = new Point(470, 135);
             btnSearchRange.Size = new Size(100, 25);
             btnSearchRange.Click += BtnSearchRange_Click;
+            btnSearchRange.TabIndex = 101; // High tab index to prevent accidental focus
             tabScanner.Controls.Add(btnSearchRange);
 
             // Progress bar
             progressBar = new ProgressBar();
-            progressBar.Location = new Point(20, 140);
+            progressBar.Location = new Point(20, 175);
             progressBar.Size = new Size(570, 25);
             tabScanner.Controls.Add(progressBar);
 
             // Progress status
             lblProgressStatus = new Label();
             lblProgressStatus.Text = "Ready";
-            lblProgressStatus.Location = new Point(20, 170);
+            lblProgressStatus.Location = new Point(20, 205);
             lblProgressStatus.Size = new Size(570, 25);
             tabScanner.Controls.Add(lblProgressStatus);
 
             // Results list
             var lblResults = new Label();
             lblResults.Text = "Search Results:";
-            lblResults.Location = new Point(20, 205);
+            lblResults.Location = new Point(20, 240);
             lblResults.Size = new Size(150, 25);
             tabScanner.Controls.Add(lblResults);
 
             lstResults = new ListBox();
-            lstResults.Location = new Point(20, 235);
+            lstResults.Location = new Point(20, 270);
             lstResults.Size = new Size(570, 150);
             lstResults.DoubleClick += LstResults_DoubleClick;
             tabScanner.Controls.Add(lstResults);
@@ -266,7 +295,7 @@
             // Select Address Button
             btnSelectAddress = new Button();
             btnSelectAddress.Text = "Select & Use Address";
-            btnSelectAddress.Location = new Point(20, 395);
+            btnSelectAddress.Location = new Point(20, 430);
             btnSelectAddress.Size = new Size(150, 30);
             btnSelectAddress.Click += BtnSelectAddress_Click;
             tabScanner.Controls.Add(btnSelectAddress);

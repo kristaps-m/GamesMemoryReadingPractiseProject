@@ -61,7 +61,7 @@ while (true)
     player.Mana = 333 - (updateCount % 10);
     Console.WriteLine($"Health: {player.Health} // Mana: {player.Mana} // X: {player.X} // Y: {player.Y}");
     Thread.Sleep(3000);
-    updateCount++;
+    //updateCount++;
 }
 
 class Player

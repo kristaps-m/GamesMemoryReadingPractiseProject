@@ -19,15 +19,22 @@ namespace WinFormsMemoReading
         private void LoadProcesses()
         {
             cmbProcess.Items.Clear();
+            cmbProcessScanner.Items.Clear();
             var processes = MemoryReaderUtil.GetRunningProcesses();
             foreach (var proc in processes)
             {
                 cmbProcess.Items.Add(proc);
+                cmbProcessScanner.Items.Add(proc);
             }
             Log("Processes refreshed.");
         }
 
         private void BtnRefresh_Click(object? sender, EventArgs e)
+        {
+            LoadProcesses();
+        }
+
+        private void BtnRefreshScanner_Click(object? sender, EventArgs e)
         {
             LoadProcesses();
         }
@@ -150,7 +157,7 @@ namespace WinFormsMemoReading
 
         private void BtnSearchValue_Click(object? sender, EventArgs e)
         {
-            if (cmbProcess.SelectedItem is not ProcessInfo selectedProcess)
+            if (cmbProcessScanner.SelectedItem is not ProcessInfo selectedProcess)
             {
                 MessageBox.Show("Please select a process first.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
@@ -168,7 +175,7 @@ namespace WinFormsMemoReading
 
         private void BtnSearchRange_Click(object? sender, EventArgs e)
         {
-            if (cmbProcess.SelectedItem is not ProcessInfo selectedProcess)
+            if (cmbProcessScanner.SelectedItem is not ProcessInfo selectedProcess)
             {
                 MessageBox.Show("Please select a process first.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
@@ -202,6 +209,8 @@ namespace WinFormsMemoReading
             btnSearchRange.Enabled = false;
             progressBar.Value = 0;
             lblProgressStatus.Text = "Searching...";
+            Log($"Starting search for value: {searchValue}");
+            Log($"Process: {_selectedProcessForScanning?.Name} (PID: {_selectedProcessForScanning?.PID})");
 
             Task.Run(() =>
             {
@@ -216,17 +225,20 @@ namespace WinFormsMemoReading
                     {
                         Invoke(new Action(() =>
                         {
-                            MessageBox.Show("Failed to open process.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                            lblProgressStatus.Text = "Search failed";
+                            Log("ERROR: Failed to open process handle!");
+                            MessageBox.Show("Failed to open process. Make sure you have sufficient permissions or try running as Administrator.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                            lblProgressStatus.Text = "Search failed - Could not open process";
                             btnSearchValue.Enabled = true;
                             btnSearchRange.Enabled = true;
                         }));
                         return;
                     }
 
+                    Log("Process opened successfully");
+
                     var progress = new Progress<int>(p => Invoke(new Action(() =>
                     {
-                        progressBar.Value = Math.Min(p / 100, 100);
+                        if (p > 0) progressBar.Value = Math.Min(p / 100, 100);
                     })));
 
                     _lastScanResults = MemoryScannerUtil.SearchForValue(hProcess, searchValue, progress);
@@ -234,9 +246,11 @@ namespace WinFormsMemoReading
                     Invoke(new Action(() =>
                     {
                         DisplayResults();
+                        Log($"Search completed: Found {_lastScanResults.Count} result(s) matching value {searchValue}");
                         lblProgressStatus.Text = $"Found {_lastScanResults.Count} result(s)";
                         btnSearchValue.Enabled = true;
                         btnSearchRange.Enabled = true;
+                        progressBar.Value = 100;
                     }));
 
                     MemoryReaderUtil.CloseHandlePublic(hProcess);
@@ -245,6 +259,7 @@ namespace WinFormsMemoReading
                 {
                     Invoke(new Action(() =>
                     {
+                        Log($"Search Exception: {ex.GetType().Name}: {ex.Message}");
                         MessageBox.Show($"Search error: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                         lblProgressStatus.Text = "Search failed";
                         btnSearchValue.Enabled = true;
@@ -260,6 +275,8 @@ namespace WinFormsMemoReading
             btnSearchRange.Enabled = false;
             progressBar.Value = 0;
             lblProgressStatus.Text = "Searching...";
+            Log($"Starting range search: {minValue} to {maxValue}");
+            Log($"Process: {_selectedProcessForScanning?.Name} (PID: {_selectedProcessForScanning?.PID})");
 
             Task.Run(() =>
             {
@@ -274,17 +291,20 @@ namespace WinFormsMemoReading
                     {
                         Invoke(new Action(() =>
                         {
-                            MessageBox.Show("Failed to open process.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                            lblProgressStatus.Text = "Search failed";
+                            Log("ERROR: Failed to open process handle!");
+                            MessageBox.Show("Failed to open process. Make sure you have sufficient permissions or try running as Administrator.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                            lblProgressStatus.Text = "Search failed - Could not open process";
                             btnSearchValue.Enabled = true;
                             btnSearchRange.Enabled = true;
                         }));
                         return;
                     }
 
+                    Log("Process opened successfully");
+
                     var progress = new Progress<int>(p => Invoke(new Action(() =>
                     {
-                        progressBar.Value = Math.Min(p / 100, 100);
+                        if (p > 0) progressBar.Value = Math.Min(p / 100, 100);
                     })));
 
                     _lastScanResults = MemoryScannerUtil.SearchForRange(hProcess, minValue, maxValue, progress);
@@ -292,9 +312,11 @@ namespace WinFormsMemoReading
                     Invoke(new Action(() =>
                     {
                         DisplayResults();
+                        Log($"Search completed: Found {_lastScanResults.Count} result(s) in range [{minValue}, {maxValue}]");
                         lblProgressStatus.Text = $"Found {_lastScanResults.Count} result(s) in range [{minValue}, {maxValue}]";
                         btnSearchValue.Enabled = true;
                         btnSearchRange.Enabled = true;
+                        progressBar.Value = 100;
                     }));
 
                     MemoryReaderUtil.CloseHandlePublic(hProcess);
@@ -303,6 +325,7 @@ namespace WinFormsMemoReading
                 {
                     Invoke(new Action(() =>
                     {
+                        Log($"Search Exception: {ex.GetType().Name}: {ex.Message}");
                         MessageBox.Show($"Search error: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                         lblProgressStatus.Text = "Search failed";
                         btnSearchValue.Enabled = true;

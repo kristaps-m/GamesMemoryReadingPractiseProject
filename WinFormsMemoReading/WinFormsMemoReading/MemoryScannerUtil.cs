@@ -8,9 +8,6 @@ namespace WinFormsMemoReading
         [DllImport("kernel32.dll", SetLastError = true)]
         private static extern bool VirtualQueryEx(IntPtr hProcess, IntPtr lpAddress, out MEMORY_BASIC_INFORMATION lpBuffer, uint dwLength);
 
-        [DllImport("kernel32.dll")]
-        private static extern void SetLastError(uint dwErrCode);
-
         [StructLayout(LayoutKind.Sequential)]
         private struct MEMORY_BASIC_INFORMATION
         {
@@ -25,7 +22,10 @@ namespace WinFormsMemoReading
 
         private const uint PAGE_READWRITE = 0x04;
         private const uint PAGE_EXECUTE_READWRITE = 0x40;
+        private const uint PAGE_READONLY = 0x02;
+        private const uint PAGE_EXECUTE_READ = 0x20;
         private const uint MEM_COMMIT = 0x1000;
+        private const uint MEM_FREE = 0x10000;
 
         public class MemoryScanResult
         {
@@ -42,6 +42,7 @@ namespace WinFormsMemoReading
         {
             var results = new List<MemoryScanResult>();
             var scannedBytes = 0L;
+            const int maxBufferSize = 1024 * 1024; // 1MB max per read
 
             IntPtr currentAddress = IntPtr.Zero;
 
@@ -56,15 +57,18 @@ namespace WinFormsMemoReading
                 }
 
                 // Check if this region is readable and committed
-                if ((mbi.State & MEM_COMMIT) != 0 && 
-                    ((mbi.Protect & PAGE_READWRITE) != 0 || (mbi.Protect & PAGE_EXECUTE_READWRITE) != 0))
+                bool isReadable = (mbi.State & MEM_COMMIT) != 0 && (mbi.Protect & (PAGE_READWRITE | PAGE_EXECUTE_READWRITE | PAGE_READONLY | PAGE_EXECUTE_READ)) != 0;
+
+                if (isReadable && mbi.RegionSize.ToInt64() > 0)
                 {
                     try
                     {
                         long regionSize = mbi.RegionSize.ToInt64();
-                        byte[] buffer = new byte[regionSize];
+                        // Read in chunks if region is too large
+                        long bytesToRead = Math.Min(regionSize, maxBufferSize);
+                        byte[] buffer = new byte[bytesToRead];
 
-                        if (MemoryReaderUtil.ReadProcessMemoryPublic(hProcess, mbi.BaseAddress, buffer, (int)regionSize, out int bytesRead))
+                        if (MemoryReaderUtil.ReadProcessMemoryPublic(hProcess, mbi.BaseAddress, buffer, (int)bytesToRead, out int bytesRead))
                         {
                             // Search for the value in this region
                             for (int i = 0; i <= bytesRead - sizeof(int); i++)
@@ -84,6 +88,10 @@ namespace WinFormsMemoReading
                             progress?.Report((int)(scannedBytes / 1024)); // Report in KB
                         }
                     }
+                    catch (OutOfMemoryException)
+                    {
+                        // Skip this region if we can't allocate buffer
+                    }
                     catch
                     {
                         // Skip regions we can't read
@@ -91,13 +99,15 @@ namespace WinFormsMemoReading
                 }
 
                 // Move to next region
-                currentAddress = new IntPtr(mbi.BaseAddress.ToInt64() + mbi.RegionSize.ToInt64());
+                long nextAddress = mbi.BaseAddress.ToInt64() + mbi.RegionSize.ToInt64();
 
                 // Safety check to prevent infinite loops
-                if (currentAddress.ToInt64() < 0)
+                if (nextAddress <= mbi.BaseAddress.ToInt64())
                 {
                     break;
                 }
+
+                currentAddress = new IntPtr(nextAddress);
             }
 
             return results;
@@ -110,6 +120,7 @@ namespace WinFormsMemoReading
         {
             var results = new List<MemoryScanResult>();
             var scannedBytes = 0L;
+            const int maxBufferSize = 1024 * 1024; // 1MB max per read
 
             IntPtr currentAddress = IntPtr.Zero;
 
@@ -124,15 +135,18 @@ namespace WinFormsMemoReading
                 }
 
                 // Check if this region is readable and committed
-                if ((mbi.State & MEM_COMMIT) != 0 && 
-                    ((mbi.Protect & PAGE_READWRITE) != 0 || (mbi.Protect & PAGE_EXECUTE_READWRITE) != 0))
+                bool isReadable = (mbi.State & MEM_COMMIT) != 0 && (mbi.Protect & (PAGE_READWRITE | PAGE_EXECUTE_READWRITE | PAGE_READONLY | PAGE_EXECUTE_READ)) != 0;
+
+                if (isReadable && mbi.RegionSize.ToInt64() > 0)
                 {
                     try
                     {
                         long regionSize = mbi.RegionSize.ToInt64();
-                        byte[] buffer = new byte[regionSize];
+                        // Read in chunks if region is too large
+                        long bytesToRead = Math.Min(regionSize, maxBufferSize);
+                        byte[] buffer = new byte[bytesToRead];
 
-                        if (MemoryReaderUtil.ReadProcessMemoryPublic(hProcess, mbi.BaseAddress, buffer, (int)regionSize, out int bytesRead))
+                        if (MemoryReaderUtil.ReadProcessMemoryPublic(hProcess, mbi.BaseAddress, buffer, (int)bytesToRead, out int bytesRead))
                         {
                             // Search for values in this region
                             for (int i = 0; i <= bytesRead - sizeof(int); i++)
@@ -152,6 +166,10 @@ namespace WinFormsMemoReading
                             progress?.Report((int)(scannedBytes / 1024)); // Report in KB
                         }
                     }
+                    catch (OutOfMemoryException)
+                    {
+                        // Skip this region if we can't allocate buffer
+                    }
                     catch
                     {
                         // Skip regions we can't read
@@ -159,13 +177,15 @@ namespace WinFormsMemoReading
                 }
 
                 // Move to next region
-                currentAddress = new IntPtr(mbi.BaseAddress.ToInt64() + mbi.RegionSize.ToInt64());
+                long nextAddress = mbi.BaseAddress.ToInt64() + mbi.RegionSize.ToInt64();
 
                 // Safety check to prevent infinite loops
-                if (currentAddress.ToInt64() < 0)
+                if (nextAddress <= mbi.BaseAddress.ToInt64())
                 {
                     break;
                 }
+
+                currentAddress = new IntPtr(nextAddress);
             }
 
             return results;
