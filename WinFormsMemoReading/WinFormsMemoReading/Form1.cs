@@ -7,6 +7,8 @@ namespace WinFormsMemoReading
         private IntPtr _processHandle = IntPtr.Zero;
         private CancellationTokenSource? _cancellationTokenSource;
         private Task? _readingTask;
+        private ProcessInfo? _selectedProcessForScanning;
+        private List<MemoryScannerUtil.MemoryScanResult> _lastScanResults = new();
 
         public Form1()
         {
@@ -142,6 +144,202 @@ namespace WinFormsMemoReading
                     lblStatus.Text = "Status: Error occurred";
                 }));
             }
+        }
+
+        // ============= SCANNER METHODS =============
+
+        private void BtnSearchValue_Click(object? sender, EventArgs e)
+        {
+            if (cmbProcess.SelectedItem is not ProcessInfo selectedProcess)
+            {
+                MessageBox.Show("Please select a process first.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            if (!int.TryParse(txtSearchValue.Text, out int searchValue))
+            {
+                MessageBox.Show("Please enter a valid integer value.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            _selectedProcessForScanning = selectedProcess;
+            PerformSearch(searchValue);
+        }
+
+        private void BtnSearchRange_Click(object? sender, EventArgs e)
+        {
+            if (cmbProcess.SelectedItem is not ProcessInfo selectedProcess)
+            {
+                MessageBox.Show("Please select a process first.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            if (!int.TryParse(txtMinValue.Text, out int minValue))
+            {
+                MessageBox.Show("Please enter a valid integer for minimum value.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            if (!int.TryParse(txtMaxValue.Text, out int maxValue))
+            {
+                MessageBox.Show("Please enter a valid integer for maximum value.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            if (minValue > maxValue)
+            {
+                MessageBox.Show("Minimum value must be less than or equal to maximum value.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            _selectedProcessForScanning = selectedProcess;
+            PerformRangeSearch(minValue, maxValue);
+        }
+
+        private void PerformSearch(int searchValue)
+        {
+            btnSearchValue.Enabled = false;
+            btnSearchRange.Enabled = false;
+            progressBar.Value = 0;
+            lblProgressStatus.Text = "Searching...";
+
+            Task.Run(() =>
+            {
+                try
+                {
+                    IntPtr hProcess = MemoryReaderUtil.OpenProcessPublic(
+                        MemoryReaderUtil.ProcessAccessFlags.VirtualMemoryRead,
+                        false,
+                        _selectedProcessForScanning!.PID);
+
+                    if (hProcess == IntPtr.Zero)
+                    {
+                        Invoke(new Action(() =>
+                        {
+                            MessageBox.Show("Failed to open process.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                            lblProgressStatus.Text = "Search failed";
+                            btnSearchValue.Enabled = true;
+                            btnSearchRange.Enabled = true;
+                        }));
+                        return;
+                    }
+
+                    var progress = new Progress<int>(p => Invoke(new Action(() =>
+                    {
+                        progressBar.Value = Math.Min(p / 100, 100);
+                    })));
+
+                    _lastScanResults = MemoryScannerUtil.SearchForValue(hProcess, searchValue, progress);
+
+                    Invoke(new Action(() =>
+                    {
+                        DisplayResults();
+                        lblProgressStatus.Text = $"Found {_lastScanResults.Count} result(s)";
+                        btnSearchValue.Enabled = true;
+                        btnSearchRange.Enabled = true;
+                    }));
+
+                    MemoryReaderUtil.CloseHandlePublic(hProcess);
+                }
+                catch (Exception ex)
+                {
+                    Invoke(new Action(() =>
+                    {
+                        MessageBox.Show($"Search error: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        lblProgressStatus.Text = "Search failed";
+                        btnSearchValue.Enabled = true;
+                        btnSearchRange.Enabled = true;
+                    }));
+                }
+            });
+        }
+
+        private void PerformRangeSearch(int minValue, int maxValue)
+        {
+            btnSearchValue.Enabled = false;
+            btnSearchRange.Enabled = false;
+            progressBar.Value = 0;
+            lblProgressStatus.Text = "Searching...";
+
+            Task.Run(() =>
+            {
+                try
+                {
+                    IntPtr hProcess = MemoryReaderUtil.OpenProcessPublic(
+                        MemoryReaderUtil.ProcessAccessFlags.VirtualMemoryRead,
+                        false,
+                        _selectedProcessForScanning!.PID);
+
+                    if (hProcess == IntPtr.Zero)
+                    {
+                        Invoke(new Action(() =>
+                        {
+                            MessageBox.Show("Failed to open process.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                            lblProgressStatus.Text = "Search failed";
+                            btnSearchValue.Enabled = true;
+                            btnSearchRange.Enabled = true;
+                        }));
+                        return;
+                    }
+
+                    var progress = new Progress<int>(p => Invoke(new Action(() =>
+                    {
+                        progressBar.Value = Math.Min(p / 100, 100);
+                    })));
+
+                    _lastScanResults = MemoryScannerUtil.SearchForRange(hProcess, minValue, maxValue, progress);
+
+                    Invoke(new Action(() =>
+                    {
+                        DisplayResults();
+                        lblProgressStatus.Text = $"Found {_lastScanResults.Count} result(s) in range [{minValue}, {maxValue}]";
+                        btnSearchValue.Enabled = true;
+                        btnSearchRange.Enabled = true;
+                    }));
+
+                    MemoryReaderUtil.CloseHandlePublic(hProcess);
+                }
+                catch (Exception ex)
+                {
+                    Invoke(new Action(() =>
+                    {
+                        MessageBox.Show($"Search error: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        lblProgressStatus.Text = "Search failed";
+                        btnSearchValue.Enabled = true;
+                        btnSearchRange.Enabled = true;
+                    }));
+                }
+            });
+        }
+
+        private void DisplayResults()
+        {
+            lstResults.Items.Clear();
+            foreach (var result in _lastScanResults.Take(1000)) // Limit to 1000 results for performance
+            {
+                lstResults.Items.Add(result);
+            }
+        }
+
+        private void LstResults_DoubleClick(object? sender, EventArgs e)
+        {
+            BtnSelectAddress_Click(null, EventArgs.Empty);
+        }
+
+        private void BtnSelectAddress_Click(object? sender, EventArgs e)
+        {
+            if (lstResults.SelectedItem is not MemoryScannerUtil.MemoryScanResult selectedResult)
+            {
+                MessageBox.Show("Please select a result first.", "Information", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            // Set the address in the Reader tab
+            txtAddress.Text = $"0x{selectedResult.Address.ToInt64():X}";
+            Log($"Selected address: 0x{selectedResult.Address.ToInt64():X} with value {selectedResult.Value}");
+
+            // Switch to Reader tab
+            tabControl.SelectedIndex = 0;
         }
 
         private void Log(string message)
